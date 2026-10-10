@@ -28,22 +28,28 @@ function phase(w){return w<=4?1:w<=8?2:3}
 function target(w){return phase(w)===1?2:3}
 function getSession(slot){return state.sessions[slot.id]||{records:[],done:false}}
 function completed(slot){return !!getSession(slot).done}
+function scheduled(slot){return state.dates&&state.dates[slot.id]||slot.date}
+function status(slot){if(completed(slot))return '✓';if(getSession(slot).records.length)return '◐';return scheduled(slot)<new Date().toLocaleDateString('sv-SE')?'!':'○'}
+function safeText(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\"':'&quot;',"'":'&#39;'}[c]))}
 function countDone(){return slots.filter(completed).length}
+function loadAdvice(name){const a=Object.values(state.sessions).flatMap(s=>s.records||[]).filter(x=>x.exercise===name);if(a.length<4)return 'Mantieni un carico leggero e cura la tecnica.';const last=a.slice(-4),kg=last[0].load;if(kg>0&&last.every(x=>x.load===kg&&x.reps>=10))return 'Hai completato le ultime 4 serie con almeno 10 ripetizioni: se la tecnica è stabile, puoi valutare il più piccolo incremento disponibile.';return 'Mantieni il carico finché tutte le ripetizioni sono controllate.'}
 function lastWeight(name){const all=Object.values(state.sessions).flatMap(s=>s.records||[]).filter(x=>x.exercise===name);return all.length?all[all.length-1].load:null}
 function calendar(){
 const first=slots[0],current=slots.find(s=>s.id===selected)||first;selected=current.id;
 let html='<h3>Calendario · 12 settimane</h3><p><b>2 nov 2026 – 24 gen 2027</b> · '+countDone()+'/24 sedute completate</p><p class="muted">Lunedì A · Giovedì B. Tocca una seduta per aprirla. ✓ completata, ○ prevista.</p><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">';
-for(let w=1;w<=12;w++){const weekSlots=slots.filter(s=>s.week===w);html+='<div style="border:1px solid #cbd5d1;border-radius:8px;padding:7px"><small>Sett. '+w+' · F'+phase(w)+'</small>';for(const slot of weekSlots){html+='<button type="button" data-slot="'+slot.id+'" style="width:100%;margin-top:5px;padding:8px 2px" '+(slot.id===selected?'aria-current="true"':'')+'>'+(completed(slot)?'✓ ':'○ ')+slot.type+'<small> '+slot.date.slice(5)+'</small></button>'}html+='</div>'}html+='</div>';
+for(let w=1;w<=12;w++){const weekSlots=slots.filter(s=>s.week===w);html+='<div style="border:1px solid #cbd5d1;border-radius:8px;padding:7px"><small>Sett. '+w+' · F'+phase(w)+'</small>';for(const slot of weekSlots){html+='<button type="button" data-slot="'+slot.id+'" style="width:100%;margin-top:5px;padding:8px 2px" '+(slot.id===selected?'aria-current="true"':'')+'>' +status(slot)+' '+slot.type+'<small> '+scheduled(slot).slice(5)+'</small></button>'}html+='</div>'}html+='</div>';
 const s=getSession(current);html+='<h3>Settimana '+current.week+' · Allenamento '+current.type+'</h3><p>Previsto: '+display(current.date)+' · Fase '+phase(current.week)+' · '+target(current.week)+' serie per esercizio</p><p class="muted">'+(phase(current.week)===1?'Tecnica: lascia 2–3 ripetizioni di margine.':phase(current.week)===2?'Consolidamento: 3 serie se la tecnica è stabile.':'Progressione: aumenta solo se tutte le ripetizioni sono controllate.')+'</p><p>'+ (s.done?'Seduta completata ✓':'Seduta da completare')+'</p><button id="openSession" type="button">'+(s.done?'Rivedi seduta':'Apri seduta')+'</button>';
 area.innerHTML=html;
 area.querySelectorAll('[data-slot]').forEach(btn=>btn.onclick=()=>{selected=btn.dataset.slot;feedback='';calendar()});
+document.getElementById('sportMoveSave').onclick=()=>{const d=document.getElementById('sportMoveDate').value;if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return;state.dates=state.dates||{};state.dates[current.id]=d;persist();calendar()};
+document.getElementById('sportMoveReset').onclick=()=>{if(state.dates)delete state.dates[current.id];persist();calendar()};
 document.getElementById('openSession').onclick=()=>{feedback='';sessionView()};
 }
 function sessionView(){
 const slot=slots.find(s=>s.id===selected),session=getSession(slot),goal=target(slot.week),total=exercises[slot.type].length*goal,n=session.records.length;
 if(session.done||n>=total){area.innerHTML='<h3>Allenamento '+slot.type+' · settimana '+slot.week+'</h3><p>Completate '+n+' serie su '+total+'.</p><p>Registrato come completato: '+(session.done?'sì':'no')+'</p><button id="backPlan" type="button">Torna al calendario</button>';document.getElementById('backPlan').onclick=calendar;return}
 const i=Math.floor(n/goal),set=n%goal,x=exercises[slot.type][i],previous=lastWeight(x[0]);
-area.innerHTML='<p><b>Settimana '+slot.week+' · '+slot.type+'</b> · Serie '+(n+1)+'/'+total+'</p><p role="status">'+feedback+'</p><h3>'+x[0]+'</h3><p>'+x[1]+'</p><p>Serie '+(set+1)+' di '+goal+' · Obiettivo 8–10 ripetizioni'+(x[0]==='Rematore con manubrio'?' per lato':'')+'</p><p class="muted">Recupero 90–120 secondi. '+(previous===null?'Parti leggero.':'Ultimo carico: '+previous+' kg per manubrio.')+'</p><form id="sportTutorForm"><label>Ripetizioni completate</label><input id="sportTutorReps" type="number" min="1" max="50" value="8" required><label>Carico kg per manubrio (goblet: un manubrio)</label><input id="sportTutorLoad" type="number" min="0" step="0.25" value="'+(previous===null?0:previous)+'" required><button type="submit">Salva serie '+(set+1)+' e continua</button></form><p id="sportTutorError" role="alert"></p><button id="sportTutorBack" type="button" class="secondary">Torna al calendario</button>';
+area.innerHTML='<p><b>Settimana '+slot.week+' · '+slot.type+'</b> · Serie '+(n+1)+'/'+total+'</p><p role="status">'+feedback+'</p><h3>'+x[0]+'</h3><p>'+x[1]+'</p><p>Serie '+(set+1)+' di '+goal+' · Obiettivo 8–10 ripetizioni'+(x[0]==='Rematore con manubrio'?' per lato':'')+'</p><p class="muted">Recupero 90–120 secondi. '+(previous===null?'Parti leggero.':'Ultimo carico: '+previous+' kg per manubrio.')+'</p><p class="muted">'+loadAdvice(x[0])+'</p><form id="sportTutorForm"><label>Ripetizioni completate</label><input id="sportTutorReps" type="number" min="1" max="50" value="8" required><label>Carico kg per manubrio (goblet: un manubrio)</label><input id="sportTutorLoad" type="number" min="0" step="0.25" value="'+(previous===null?0:previous)+'" required><button type="submit">Salva serie '+(set+1)+' e continua</button></form><p id="sportTutorError" role="alert"></p><button id="sportTutorBack" type="button" class="secondary">Torna al calendario</button>';
 document.getElementById('sportTutorBack').onclick=calendar;
 document.getElementById('sportTutorForm').onsubmit=e=>{
 e.preventDefault();const reps=Number(document.getElementById('sportTutorReps').value),load=Number(document.getElementById('sportTutorLoad').value);
@@ -62,6 +68,30 @@ sessionView();
 }catch(err){document.getElementById('sportTutorError').textContent='Non salvato: '+err.message}
 };
 }
+
+const exportButton=document.getElementById('exportJson');
+exportButton.onclick=()=>{
+const db=JSON.parse(localStorage.getItem('mybody_v1'));
+const sport=JSON.parse(localStorage.getItem(KEY)||'{}');
+const content=JSON.stringify({app:'MyBody',version:1,exported:new Date().toISOString(),data:db,sportPlan:sport},null,2);
+const blob=new Blob([content],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+a.href=url;a.download='mybody-backup-'+new Date().toLocaleDateString('sv-SE')+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+};
+const importInput=document.getElementById('importJson');
+const legacyImport=importInput.onchange;
+importInput.onchange=async function(e){
+const file=e.target.files&&e.target.files[0];if(!file)return;
+try{
+const content=JSON.parse(await file.text());
+if(content.app!=='MyBody'||content.version!==1||!content.data||!Array.isArray(content.data.workout))throw Error('Backup non valido');
+if(!confirm('Ripristinare il backup? Sostituirà i dati attuali e, se presente, il piano Sport.'))return;
+const restored=content.sportPlan&&typeof content.sportPlan==='object'?content.sportPlan:{sessions:{}};
+localStorage.setItem('mybody_v1',JSON.stringify(content.data));
+localStorage.setItem(KEY,JSON.stringify(restored));
+alert('Ripristino completato. La pagina sarà ricaricata.');
+location.reload();
+}catch(err){alert('Ripristino non riuscito: '+err.message)}finally{e.target.value=''}
+};
 calendar();
 })();
 </script></body></html>
