@@ -11,21 +11,37 @@
 <section id="stats"><h2>Statistiche e dati</h2><div class="card"><h2>Ultimi 7 giorni</h2><div id="weekly"></div></div><div class="card"><h2>Esportazione e ripristino</h2><p>Esporta periodicamente i dati. La cancellazione dei dati di Safari può eliminare il diario.</p><button id="exportJson">Backup JSON</button><button id="exportCsv" class="secondary">Esporta CSV</button><label>Ripristina backup JSON (sostituisce i dati attuali)</label><input id="importJson" type="file" accept=".json,application/json"></div><p class="muted">Non è un dispositivo medico. Non pubblicare qui informazioni personali nel repository GitHub: il diario rimane nel browser.</p></section>
 </main><nav id="nav"><button data-tab="today" class="active">Oggi</button><button data-tab="food">Cibo</button><button data-tab="pantry">Dispensa</button><button data-tab="weight">Peso</button><button data-tab="workout">Sport</button><button data-tab="wellbeing">Salute</button><button data-tab="stats">Dati</button></nav><script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script><script src="./app.js?v=10"></script><script>
 (function(){
-const exercises=[
-['Goblet squat',8,'Gambe: tieni un manubrio al petto, scendi lentamente e risali.'],
-['Distensioni su panca',8,'Petto: piedi a terra, scendi lentamente e spingi con controllo.'],
-['Rematore con manubrio',10,'Schiena: una mano sulla panca, tira verso il fianco; ripeti per lato.'],
-['Stacco rumeno con manubri',8,'Gambe: porta il bacino indietro mantenendo la schiena neutra.']
-];
-let step=-1,series=0;
 const area=document.getElementById('tutorCard');
-function show(){
-if(step<0){area.innerHTML='<p>4 esercizi, 2 serie ciascuno. Recupero: 90–120 secondi.</p><button id="startGuide">Inizia tutor</button>';document.getElementById('startGuide').onclick=()=>{step=0;series=0;show()};return}
-if(step>=exercises.length){area.innerHTML='<h3>Allenamento completato!</h3><button id="restartGuide">Nuova sessione</button>';document.getElementById('restartGuide').onclick=()=>{step=-1;show()};return}
-const x=exercises[step];area.innerHTML='<h3>'+x[0]+'</h3><p>'+x[2]+'</p><p>Esercizio '+(step+1)+'/4 · Serie '+(series+1)+'/2 · Obiettivo '+x[1]+' ripetizioni</p><form id="guideForm"><label>Ripetizioni eseguite</label><input id="guideReps" type="number" min="1" max="50" value="'+x[1]+'" required><label>Kg per manubrio (goblet: un manubrio)</label><input id="guideKg" type="number" min="0" step="0.25" value="0" required><button>Salva serie</button></form><button id="endGuide" class="secondary" type="button">Termina</button>';
-document.getElementById('endGuide').onclick=()=>{step=-1;show()};
-document.getElementById('guideForm').onsubmit=e=>{e.preventDefault();const reps=Number(document.getElementById('guideReps').value),load=Number(document.getElementById('guideKg').value);if(!Number.isInteger(reps)||reps<1||reps>50||!Number.isFinite(load)||load<0)return;add('workout',{date:date(),exercise:x[0],sets:1,reps,load,notes:'Tutor serie '+(series+1)+'/2'});series++;if(series===2){series=0;step++}show()};
+const plans={
+A:[['Goblet squat',8,'Tieni un manubrio al petto, scendi con controllo.'],['Distensioni su panca',8,'Piedi a terra, manubri controllati.'],['Rematore con manubrio',10,'Appoggiati alla panca e tira verso il fianco, per lato.'],['Stacco rumeno con manubri',8,'Porta il bacino indietro, schiena neutra.']],
+B:[['Goblet squat',10,'Scendi con controllo.'],['Rematore con manubrio',10,'Schiena stabile, per lato.'],['Distensioni su panca',10,'Controlla la discesa.'],['Stacco rumeno con manubri',10,'Movimento lento, peso leggero.']]
+};
+let day='',step=0,series=0;
+function view(){
+if(!day){area.innerHTML='<h3>Piano settimanale</h3><p><b>Lunedì:</b> Allenamento A · 30–40 min</p><p><b>Giovedì:</b> Allenamento B · 30–40 min</p><p>Gli altri giorni: recupero o attività leggera. Riscaldamento 5–8 minuti, recupero tra le serie 90–120 secondi.</p><button id="startA" type="button">Inizia A</button> <button id="startB" type="button" class="secondary">Inizia B</button>';document.getElementById('startA').onclick=()=>start('A');document.getElementById('startB').onclick=()=>start('B');return}
+if(step>=plans[day].length){area.innerHTML='<h3>Allenamento '+day+' completato</h3><p>Le serie sono nello storico Sport.</p><button id="doneGuide" type="button">Torna al piano</button>';document.getElementById('doneGuide').onclick=()=>{day='';view()};return}
+const x=plans[day][step];
+area.innerHTML='<p><b>Allenamento '+day+'</b> · Esercizio '+(step+1)+'/4 · Serie '+(series+1)+'/2</p><h3>'+x[0]+'</h3><p>'+x[2]+'</p><p>Obiettivo: '+x[1]+' ripetizioni</p><form id="guideForm"><label>Ripetizioni eseguite</label><input id="guideReps" type="number" min="1" max="50" value="'+x[1]+'" required><label>Kg per manubrio (goblet: un manubrio)</label><input id="guideKg" type="number" min="0" step="0.25" value="0" required><button type="submit">Salva e continua</button></form><p id="guideStatus" aria-live="polite"></p><button id="exitGuide" type="button" class="secondary">Esci dal tutor</button>';
+document.getElementById('exitGuide').onclick=()=>{day='';view()};
+document.getElementById('guideForm').onsubmit=function(e){
+e.preventDefault();
+const reps=Number(document.getElementById('guideReps').value);
+const kg=Number(document.getElementById('guideKg').value);
+if(!Number.isInteger(reps)||reps<1||reps>50||!Number.isFinite(kg)||kg<0){document.getElementById('guideStatus').textContent='Controlla i valori.';return}
+try{
+const record={id:crypto.randomUUID(),created:new Date().toISOString(),date:new Date().toLocaleDateString('sv-SE'),exercise:x[0],sets:1,reps:reps,load:kg,notes:'Tutor '+day+' · serie '+(series+1)+'/2'};
+const key='mybody_v1',db=JSON.parse(localStorage.getItem(key));
+if(!db||!Array.isArray(db.workout))throw Error('Archivio non disponibile');
+db.workout.push(record);
+localStorage.setItem(key,JSON.stringify(db));
+if(typeof data!=='undefined'){data.workout.push(record);render()}
+series++;
+if(series>=2){series=0;step++}
+view();
+}catch(err){document.getElementById('guideStatus').textContent='Salvataggio non riuscito: '+err.message}
+};
 }
-show();
+function start(which){day=which;step=0;series=0;view()}
+view();
 })();
 </script></body></html>
