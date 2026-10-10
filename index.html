@@ -48,7 +48,7 @@ const videos={
 'Stacco rumeno con manubri':{id:'hQgFixeXdZo',title:'Romanian deadlift · tecnica per principianti'}
 };
 const l=lessons[name];if(!l)return '';
-const v=videos[name],videoHtml=v?'<div style="margin:12px 0"><p><b>Video dimostrativo</b> · '+v.title+'</p><div style="position:relative;width:100%;padding-top:56.25%;background:#111;border-radius:10px;overflow:hidden"><iframe title="Video dimostrativo '+name+'" loading="lazy" src="https://www.youtube-nocookie.com/embed/'+v.id+'?rel=0" allow="accelerometer;autoplay;encrypted-media;gyroscope;picture-in-picture;web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe></div><p><a target="_blank" rel="noopener noreferrer" href="https://www.youtube.com/watch?v='+v.id+'">Apri il video su YouTube se non parte qui ↗</a></p><p class="muted">Video in inglese: osserva soprattutto la posizione iniziale, il movimento e il ritorno. Richiede Internet.</p></div>':'';
+const v=videos[name],videoHtml=v?'<section class="sport-video-panel" style="display:block!important;border:2px solid #146d55;border-radius:12px;background:#eef6f1;padding:12px;margin:12px 0"><h3 style="margin:0 0 8px">VIDEO · '+name+'</h3><p>Guarda una persona eseguire il movimento prima di iniziare.</p><button type="button" class="sportVideoLoad" data-video="'+v.id+'">▶ Carica il video qui</button><div class="sportVideoPlayer" style="display:none;min-height:220px;margin-top:10px"></div><p><a href="https://www.youtube.com/watch?v='+v.id+'" target="_blank" rel="noopener noreferrer">Apri su YouTube se non si vede</a></p></section>':'';
 return videoHtml+'<details style="border:1px solid #cbd5d1;border-radius:10px;padding:12px;margin:12px 0" open><summary><b>Scuola esercizio · impara il movimento</b></summary><p><b>1. Preparati:</b> '+l.setup+'</p><p><b>2. Esegui:</b></p><ol>'+l.steps.map(t=>'<li>'+t+'</li>').join('')+'</ol><p><b>3. Versione facile:</b> '+l.easy+'</p><p><b>4. Errori da evitare:</b> '+l.errors+'</p><p><a href="'+l.url+'" target="_blank" rel="noopener noreferrer">Guarda foto e dimostrazione su ACE Fitness ↗</a></p><p class="muted">La risorsa esterna richiede Internet. Fermati se avverti dolore; per una verifica personalizzata della tecnica, chiedi a un istruttore qualificato.</p></details>';
 }
 function summary(slot,session,goal){
@@ -83,6 +83,15 @@ if(session.done||n>=total){stopRest();area.innerHTML='<h3>Allenamento '+slot.typ
 const i=Math.floor(n/goal),set=n%goal,x=exercises[slot.type][i],previous=lastWeight(x[0]);
 area.innerHTML='<p><b>Settimana '+slot.week+' · '+slot.type+'</b> · Serie '+(n+1)+'/'+total+'</p><p role="status">'+feedback+'</p><h3>'+x[0]+'</h3><p>'+x[1]+'</p>'+movement(x[0])+'<p>Serie '+(set+1)+' di '+goal+' · Obiettivo 8–10 ripetizioni'+(x[0]==='Rematore con manubrio'?' per lato':'')+'</p><p class="muted">Recupero 90–120 secondi. '+(previous===null?'Parti leggero.':'Ultimo carico: '+previous+' kg per manubrio.')+'</p><p class="muted">'+loadAdvice(x[0])+'</p><div id="sportRest"></div><form id="sportTutorForm"><label>Ripetizioni completate</label><input id="sportTutorReps" type="number" min="1" max="50" value="8" required><label>Carico kg per manubrio (goblet: un manubrio)</label><input id="sportTutorLoad" type="number" min="0" step="0.25" value="'+(previous===null?0:previous)+'" required><button type="submit">Salva serie '+(set+1)+' e continua</button></form><p id="sportTutorError" role="alert"></p><button id="sportTutorBack" type="button" class="secondary">Torna al calendario</button>';
 restControls();
+const loadVideo=area.querySelector('.sportVideoLoad');
+if(loadVideo)loadVideo.onclick=()=>{
+const player=area.querySelector('.sportVideoPlayer');
+const id=loadVideo.dataset.video;
+if(!/^[a-zA-Z0-9_-]{11}$/.test(id))return;
+player.style.display='block';
+player.innerHTML='<iframe title="Dimostrazione esercizio" src="https://www.youtube.com/embed/'+id+'?playsinline=1&rel=0" allow="accelerometer;autoplay;encrypted-media;gyroscope;picture-in-picture;web-share" allowfullscreen style="display:block;width:100%;height:240px;border:0;border-radius:8px;background:#111"></iframe>';
+loadVideo.textContent='Ricarica il video';
+};
 document.getElementById('sportTutorBack').onclick=calendar;
 document.getElementById('sportTutorForm').onsubmit=e=>{
 e.preventDefault();const reps=Number(document.getElementById('sportTutorReps').value),load=Number(document.getElementById('sportTutorLoad').value);
