@@ -16,12 +16,12 @@ const plans={
 A:[['Goblet squat',8,'Tieni un manubrio al petto, scendi con controllo.'],['Distensioni su panca',8,'Piedi a terra, manubri controllati.'],['Rematore con manubrio',10,'Appoggiati alla panca e tira verso il fianco, per lato.'],['Stacco rumeno con manubri',8,'Porta il bacino indietro, schiena neutra.']],
 B:[['Goblet squat',10,'Scendi con controllo.'],['Rematore con manubrio',10,'Schiena stabile, per lato.'],['Distensioni su panca',10,'Controlla la discesa.'],['Stacco rumeno con manubri',10,'Movimento lento, peso leggero.']]
 };
-let day='',step=0,series=0;
+let day='',step=0,series=0,feedback='';
 function view(){
 if(!day){area.innerHTML='<h3>Piano settimanale</h3><p><b>Lunedì:</b> Allenamento A · 30–40 min</p><p><b>Giovedì:</b> Allenamento B · 30–40 min</p><p>Gli altri giorni: recupero o attività leggera. Riscaldamento 5–8 minuti, recupero tra le serie 90–120 secondi.</p><button id="startA" type="button">Inizia A</button> <button id="startB" type="button" class="secondary">Inizia B</button>';document.getElementById('startA').onclick=()=>start('A');document.getElementById('startB').onclick=()=>start('B');return}
 if(step>=plans[day].length){area.innerHTML='<h3>Allenamento '+day+' completato</h3><p>Le serie sono nello storico Sport.</p><button id="doneGuide" type="button">Torna al piano</button>';document.getElementById('doneGuide').onclick=()=>{day='';view()};return}
 const x=plans[day][step];
-area.innerHTML='<p><b>Allenamento '+day+'</b> · Esercizio '+(step+1)+'/4 · Serie '+(series+1)+'/2</p><h3>'+x[0]+'</h3><p>'+x[2]+'</p><p>Obiettivo: '+x[1]+' ripetizioni</p><form id="guideForm"><label>Ripetizioni eseguite</label><input id="guideReps" type="number" min="1" max="50" value="'+x[1]+'" required><label>Kg per manubrio (goblet: un manubrio)</label><input id="guideKg" type="number" min="0" step="0.25" value="0" required><button type="submit">Salva e continua</button></form><p id="guideStatus" aria-live="polite"></p><button id="exitGuide" type="button" class="secondary">Esci dal tutor</button>';
+area.innerHTML='<p><b>Allenamento '+day+'</b> · Esercizio '+(step+1)+'/4 · <b>Serie '+(series+1)+' di 2</b></p><p role="status">'+feedback+'</p><h3>'+x[0]+'</h3><p>'+x[2]+'</p><p>Obiettivo: '+x[1]+' ripetizioni</p><form id="guideForm"><label>Ripetizioni eseguite</label><input id="guideReps" type="number" min="1" max="50" value="'+x[1]+'" required><label>Kg per manubrio (goblet: un manubrio)</label><input id="guideKg" type="number" min="0" step="0.25" value="0" required><button type="submit">'+(series===0?'Salva serie 1 e vai alla serie 2':'Salva serie 2 e vai al prossimo esercizio')+'</button></form><p id="guideStatus" aria-live="polite"></p><button id="exitGuide" type="button" class="secondary">Esci dal tutor</button>';
 document.getElementById('exitGuide').onclick=()=>{day='';view()};
 document.getElementById('guideForm').onsubmit=function(e){
 e.preventDefault();
@@ -36,12 +36,12 @@ db.workout.push(record);
 localStorage.setItem(key,JSON.stringify(db));
 if(typeof data!=='undefined'){data.workout.push(record);render()}
 series++;
-if(series>=2){series=0;step++}
+if(series>=2){series=0;step++;feedback='Serie 2 salvata. Esercizio completato.'}else{feedback='Serie 1 salvata. Ora esegui la seconda serie dopo 90–120 secondi di recupero.'}
 view();
 }catch(err){document.getElementById('guideStatus').textContent='Salvataggio non riuscito: '+err.message}
 };
 }
-function start(which){day=which;step=0;series=0;view()}
+function start(which){day=which;step=0;series=0;feedback='';view()}
 view();
 })();
 </script></body></html>
