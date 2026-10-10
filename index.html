@@ -11,37 +11,57 @@
 <section id="stats"><h2>Statistiche e dati</h2><div class="card"><h2>Ultimi 7 giorni</h2><div id="weekly"></div></div><div class="card"><h2>Esportazione e ripristino</h2><p>Esporta periodicamente i dati. La cancellazione dei dati di Safari può eliminare il diario.</p><button id="exportJson">Backup JSON</button><button id="exportCsv" class="secondary">Esporta CSV</button><label>Ripristina backup JSON (sostituisce i dati attuali)</label><input id="importJson" type="file" accept=".json,application/json"></div><p class="muted">Non è un dispositivo medico. Non pubblicare qui informazioni personali nel repository GitHub: il diario rimane nel browser.</p></section>
 </main><nav id="nav"><button data-tab="today" class="active">Oggi</button><button data-tab="food">Cibo</button><button data-tab="pantry">Dispensa</button><button data-tab="weight">Peso</button><button data-tab="workout">Sport</button><button data-tab="wellbeing">Salute</button><button data-tab="stats">Dati</button></nav><script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script><script src="./app.js?v=10"></script><script>
 (function(){
-const area=document.getElementById('tutorCard');
-const plans={
-A:[['Goblet squat',8,'Tieni un manubrio al petto, scendi con controllo.'],['Distensioni su panca',8,'Piedi a terra, manubri controllati.'],['Rematore con manubrio',10,'Appoggiati alla panca e tira verso il fianco, per lato.'],['Stacco rumeno con manubri',8,'Porta il bacino indietro, schiena neutra.']],
-B:[['Goblet squat',10,'Scendi con controllo.'],['Rematore con manubrio',10,'Schiena stabile, per lato.'],['Distensioni su panca',10,'Controlla la discesa.'],['Stacco rumeno con manubri',10,'Movimento lento, peso leggero.']]
+'use strict';
+const area=document.getElementById('tutorCard'),KEY='mybody_sport_plan_v1',START='2026-11-02';
+const exercises={
+A:[['Goblet squat','Gambe e glutei. Un manubrio al petto, scendi e risali con controllo.'],['Distensioni su panca','Petto. Piedi stabili, scendi lentamente, spingi senza perdere controllo.'],['Rematore con manubrio','Schiena. Una mano sulla panca, tira verso il fianco. Ripeti su entrambi i lati.'],['Stacco rumeno con manubri','Glutei. Bacino indietro, schiena neutra e manubri vicini alle gambe.']],
+B:[['Goblet squat','Gambe. Controlla la discesa, ginocchia in linea con i piedi.'],['Rematore con manubrio','Schiena. Busto fermo, esegui entrambi i lati.'],['Distensioni su panca','Petto. Usa un carico gestibile senza aiuto.'],['Stacco rumeno con manubri','Glutei. Mantieni la schiena neutra, movimento lento.']]
 };
-let day='',step=0,series=0,feedback='';
-function view(){
-if(!day){area.innerHTML='<h3>Piano settimanale</h3><p><b>Lunedì:</b> Allenamento A · 30–40 min</p><p><b>Giovedì:</b> Allenamento B · 30–40 min</p><p>Gli altri giorni: recupero o attività leggera. Riscaldamento 5–8 minuti, recupero tra le serie 90–120 secondi.</p><button id="startA" type="button">Inizia A</button> <button id="startB" type="button" class="secondary">Inizia B</button>';document.getElementById('startA').onclick=()=>start('A');document.getElementById('startB').onclick=()=>start('B');return}
-if(step>=plans[day].length){area.innerHTML='<h3>Allenamento '+day+' completato</h3><p>Le serie sono nello storico Sport.</p><button id="doneGuide" type="button">Torna al piano</button>';document.getElementById('doneGuide').onclick=()=>{day='';view()};return}
-const x=plans[day][step];
-area.innerHTML='<p><b>Allenamento '+day+'</b> · Esercizio '+(step+1)+'/4 · <b>Serie '+(series+1)+' di 2</b></p><p role="status">'+feedback+'</p><h3>'+x[0]+'</h3><p>'+x[2]+'</p><p>Obiettivo: '+x[1]+' ripetizioni</p><form id="guideForm"><label>Ripetizioni eseguite</label><input id="guideReps" type="number" min="1" max="50" value="'+x[1]+'" required><label>Kg per manubrio (goblet: un manubrio)</label><input id="guideKg" type="number" min="0" step="0.25" value="0" required><button type="submit">'+(series===0?'Salva serie 1 e vai alla serie 2':'Salva serie 2 e vai al prossimo esercizio')+'</button></form><p id="guideStatus" aria-live="polite"></p><button id="exitGuide" type="button" class="secondary">Esci dal tutor</button>';
-document.getElementById('exitGuide').onclick=()=>{day='';view()};
-document.getElementById('guideForm').onsubmit=function(e){
-e.preventDefault();
-const reps=Number(document.getElementById('guideReps').value);
-const kg=Number(document.getElementById('guideKg').value);
-if(!Number.isInteger(reps)||reps<1||reps>50||!Number.isFinite(kg)||kg<0){document.getElementById('guideStatus').textContent='Controlla i valori.';return}
+const dateAdd=(s,n)=>{const d=new Date(s+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
+const display=s=>new Date(s+'T12:00:00Z').toLocaleDateString('it-CH',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
+const slots=Array.from({length:12},(_,w)=>[0,3].map((offset,i)=>({id:'w'+(w+1)+(i?'B':'A'),week:w+1,type:i?'B':'A',date:dateAdd(START,w*7+offset)}))).flat();
+let state;try{state=JSON.parse(localStorage.getItem(KEY))||{}}catch{state={}}
+if(!state||typeof state!=='object')state={};if(!state.sessions||typeof state.sessions!=='object')state.sessions={};
+let selected=slots[0].id,feedback='';
+function persist(){localStorage.setItem(KEY,JSON.stringify(state))}
+function phase(w){return w<=4?1:w<=8?2:3}
+function target(w){return phase(w)===1?2:3}
+function getSession(slot){return state.sessions[slot.id]||{records:[],done:false}}
+function completed(slot){return !!getSession(slot).done}
+function countDone(){return slots.filter(completed).length}
+function lastWeight(name){const all=Object.values(state.sessions).flatMap(s=>s.records||[]).filter(x=>x.exercise===name);return all.length?all[all.length-1].load:null}
+function calendar(){
+const first=slots[0],current=slots.find(s=>s.id===selected)||first;selected=current.id;
+let html='<h3>Calendario · 12 settimane</h3><p><b>2 nov 2026 – 24 gen 2027</b> · '+countDone()+'/24 sedute completate</p><p class="muted">Lunedì A · Giovedì B. Tocca una seduta per aprirla. ✓ completata, ○ prevista.</p><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">';
+for(let w=1;w<=12;w++){const weekSlots=slots.filter(s=>s.week===w);html+='<div style="border:1px solid #cbd5d1;border-radius:8px;padding:7px"><small>Sett. '+w+' · F'+phase(w)+'</small>';for(const slot of weekSlots){html+='<button type="button" data-slot="'+slot.id+'" style="width:100%;margin-top:5px;padding:8px 2px" '+(slot.id===selected?'aria-current="true"':'')+'>'+(completed(slot)?'✓ ':'○ ')+slot.type+'<small> '+slot.date.slice(5)+'</small></button>'}html+='</div>'}html+='</div>';
+const s=getSession(current);html+='<h3>Settimana '+current.week+' · Allenamento '+current.type+'</h3><p>Previsto: '+display(current.date)+' · Fase '+phase(current.week)+' · '+target(current.week)+' serie per esercizio</p><p class="muted">'+(phase(current.week)===1?'Tecnica: lascia 2–3 ripetizioni di margine.':phase(current.week)===2?'Consolidamento: 3 serie se la tecnica è stabile.':'Progressione: aumenta solo se tutte le ripetizioni sono controllate.')+'</p><p>'+ (s.done?'Seduta completata ✓':'Seduta da completare')+'</p><button id="openSession" type="button">'+(s.done?'Rivedi seduta':'Apri seduta')+'</button>';
+area.innerHTML=html;
+area.querySelectorAll('[data-slot]').forEach(btn=>btn.onclick=()=>{selected=btn.dataset.slot;feedback='';calendar()});
+document.getElementById('openSession').onclick=()=>{feedback='';sessionView()};
+}
+function sessionView(){
+const slot=slots.find(s=>s.id===selected),session=getSession(slot),goal=target(slot.week),total=exercises[slot.type].length*goal,n=session.records.length;
+if(session.done||n>=total){area.innerHTML='<h3>Allenamento '+slot.type+' · settimana '+slot.week+'</h3><p>Completate '+n+' serie su '+total+'.</p><p>Registrato come completato: '+(session.done?'sì':'no')+'</p><button id="backPlan" type="button">Torna al calendario</button>';document.getElementById('backPlan').onclick=calendar;return}
+const i=Math.floor(n/goal),set=n%goal,x=exercises[slot.type][i],previous=lastWeight(x[0]);
+area.innerHTML='<p><b>Settimana '+slot.week+' · '+slot.type+'</b> · Serie '+(n+1)+'/'+total+'</p><p role="status">'+feedback+'</p><h3>'+x[0]+'</h3><p>'+x[1]+'</p><p>Serie '+(set+1)+' di '+goal+' · Obiettivo 8–10 ripetizioni'+(x[0]==='Rematore con manubrio'?' per lato':'')+'</p><p class="muted">Recupero 90–120 secondi. '+(previous===null?'Parti leggero.':'Ultimo carico: '+previous+' kg per manubrio.')+'</p><form id="sportTutorForm"><label>Ripetizioni completate</label><input id="sportTutorReps" type="number" min="1" max="50" value="8" required><label>Carico kg per manubrio (goblet: un manubrio)</label><input id="sportTutorLoad" type="number" min="0" step="0.25" value="'+(previous===null?0:previous)+'" required><button type="submit">Salva serie '+(set+1)+' e continua</button></form><p id="sportTutorError" role="alert"></p><button id="sportTutorBack" type="button" class="secondary">Torna al calendario</button>';
+document.getElementById('sportTutorBack').onclick=calendar;
+document.getElementById('sportTutorForm').onsubmit=e=>{
+e.preventDefault();const reps=Number(document.getElementById('sportTutorReps').value),load=Number(document.getElementById('sportTutorLoad').value);
+if(!Number.isInteger(reps)||reps<1||reps>50||!Number.isFinite(load)||load<0){document.getElementById('sportTutorError').textContent='Controlla ripetizioni e peso.';return}
 try{
-const record={id:crypto.randomUUID(),created:new Date().toISOString(),date:new Date().toLocaleDateString('sv-SE'),exercise:x[0],sets:1,reps:reps,load:kg,notes:'Tutor '+day+' · serie '+(series+1)+'/2'};
-const key='mybody_v1',db=JSON.parse(localStorage.getItem(key));
-if(!db||!Array.isArray(db.workout))throw Error('Archivio non disponibile');
+const db=JSON.parse(localStorage.getItem('mybody_v1'));if(!db||!Array.isArray(db.workout))throw Error('Archivio allenamenti non disponibile');
+const now=new Date(),today=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+const record={id:crypto.randomUUID(),created:now.toISOString(),date:today,exercise:x[0],sets:1,reps,load,notes:'Piano 12 settimane · '+slot.id+' · serie '+(set+1)+'/'+goal};
+const next={records:[...session.records,record],done:n+1===total};
 db.workout.push(record);
-localStorage.setItem(key,JSON.stringify(db));
+localStorage.setItem('mybody_v1',JSON.stringify(db));
+state.sessions[slot.id]=next;persist();
 if(typeof data!=='undefined'){data.workout.push(record);render()}
-series++;
-if(series>=2){series=0;step++;feedback='Serie 2 salvata. Esercizio completato.'}else{feedback='Serie 1 salvata. Ora esegui la seconda serie dopo 90–120 secondi di recupero.'}
-view();
-}catch(err){document.getElementById('guideStatus').textContent='Salvataggio non riuscito: '+err.message}
+feedback='Serie salvata. '+(next.done?'Seduta completata!':'Recupera 90–120 secondi.');
+sessionView();
+}catch(err){document.getElementById('sportTutorError').textContent='Non salvato: '+err.message}
 };
 }
-function start(which){day=which;step=0;series=0;feedback='';view()}
-view();
+calendar();
 })();
 </script></body></html>
