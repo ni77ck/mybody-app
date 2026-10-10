@@ -69,13 +69,29 @@ function lastWeight(name){const all=Object.values(state.sessions).flatMap(s=>s.r
 function calendar(){
 stopRest();const first=slots[0],current=slots.find(s=>s.id===selected)||first;selected=current.id;
 let html='<h3>Calendario · 12 settimane</h3><p><b>2 nov 2026 – 24 gen 2027</b> · '+countDone()+'/24 sedute completate</p><p class="muted">Lunedì A · Giovedì B. Tocca una seduta per aprirla. ✓ completata, ○ prevista.</p><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">';
-for(let w=1;w<=12;w++){const weekSlots=slots.filter(s=>s.week===w);html+='<div style="border:1px solid #cbd5d1;border-radius:8px;padding:7px"><small>Sett. '+w+' · F'+phase(w)+'</small>';for(const slot of weekSlots){html+='<button type="button" data-slot="'+slot.id+'" style="width:100%;margin-top:5px;padding:8px 2px" '+(slot.id===selected?'aria-current="true"':'')+'>' +status(slot)+' '+slot.type+'<small> '+scheduled(slot).slice(5)+'</small></button>'}html+='</div>'}html+='</div>';
+for(let w=1;w<=12;w++){const weekSlots=slots.filter(s=>s.week===w);html+='<div style="border:1px solid #cbd5d1;border-radius:8px;padding:7px"><small>Sett. '+w+' · F'+phase(w)+'</small>';for(const slot of weekSlots){html+='<button type="button" data-slot="'+slot.id+'" style="width:100%;margin-top:5px;padding:8px 2px" '+(slot.id===selected?'aria-current="true"':'')+'>' +status(slot)+' '+slot.type+'<small> '+scheduled(slot).slice(5)+'</small></button>'}html+='</div>'}html+='</div><p><button type="button" id="openLesson" class="secondary">Impara gli esercizi · senza registrare dati</button></p>';
 const s=getSession(current);html+='<h3>Settimana '+current.week+' · Allenamento '+current.type+'</h3><p>Previsto: '+display(scheduled(current))+' · Fase '+phase(current.week)+' · '+target(current.week)+' serie per esercizio</p><p class="muted">'+(phase(current.week)===1?'Tecnica: lascia 2–3 ripetizioni di margine.':phase(current.week)===2?'Consolidamento: 3 serie se la tecnica è stabile.':'Progressione: aumenta solo se tutte le ripetizioni sono controllate.')+'</p><p>'+ (s.done?'Seduta completata ✓':s.records.length?'Seduta iniziata · '+s.records.length+' serie':status(current)==='!'?'Seduta da recuperare':'Seduta prevista')+'</p><label>Sposta seduta</label><input type="date" id="sportMoveDate" value="'+scheduled(current)+'"><button type="button" id="sportMoveSave" class="secondary">Salva nuova data</button><button type="button" id="sportMoveReset" class="secondary">Ripristina data originale</button><button id="openSession" type="button">'+(s.done?'Rivedi seduta':'Apri seduta')+'</button>';
 area.innerHTML=html;
 area.querySelectorAll('[data-slot]').forEach(btn=>btn.onclick=()=>{selected=btn.dataset.slot;feedback='';calendar()});
+document.getElementById('openLesson').onclick=lessonMode;
 document.getElementById('sportMoveSave').onclick=()=>{const d=document.getElementById('sportMoveDate').value;if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return;state.dates=state.dates||{};state.dates[current.id]=d;persist();calendar()};
 document.getElementById('sportMoveReset').onclick=()=>{if(state.dates)delete state.dates[current.id];persist();calendar()};
 document.getElementById('openSession').onclick=()=>{feedback='';sessionView()};
+}
+function lessonMode(){
+stopRest();
+const names=exercises.A.map(x=>x[0]);
+area.innerHTML='<h3>Prima del 2 novembre · impara gli esercizi</h3><p>Guarda i video e prova i movimenti senza peso. Questa modalità non registra serie e non modifica il calendario.</p><label for="lessonPick">Scegli un esercizio</label><select id="lessonPick">'+names.map((n,i)=>'<option value="'+i+'">'+n+'</option>').join('')+'</select><div id="lessonContents"></div><button id="lessonBack" type="button" class="secondary">Torna al calendario</button>';
+const select=document.getElementById('lessonPick'),contents=document.getElementById('lessonContents');
+function show(){const name=names[Number(select.value)];contents.innerHTML=movement(name);const btn=contents.querySelector('.sportVideoLoad');if(btn)btn.onclick=()=>loadVideoInto(contents,btn)}
+select.onchange=show;document.getElementById('lessonBack').onclick=calendar;show();
+}
+function loadVideoInto(container,btn){
+const player=container.querySelector('.sportVideoPlayer'),id=btn.dataset.video;
+if(!player||!/^[a-zA-Z0-9_-]{11}$/.test(id))return;
+player.style.display='block';
+player.innerHTML='<iframe title="Dimostrazione esercizio" src="https://www.youtube.com/embed/'+id+'?playsinline=1&rel=0" allow="accelerometer;autoplay;encrypted-media;gyroscope;picture-in-picture;web-share" allowfullscreen style="display:block;width:100%;height:240px;border:0;border-radius:8px;background:#111"></iframe>';
+btn.textContent='Ricarica il video';
 }
 function sessionView(){
 const slot=slots.find(s=>s.id===selected),session=getSession(slot),goal=target(slot.week),total=exercises[slot.type].length*goal,n=session.records.length;
@@ -84,14 +100,7 @@ const i=Math.floor(n/goal),set=n%goal,x=exercises[slot.type][i],previous=lastWei
 area.innerHTML='<p><b>Settimana '+slot.week+' · '+slot.type+'</b> · Serie '+(n+1)+'/'+total+'</p><p role="status">'+feedback+'</p><h3>'+x[0]+'</h3><p>'+x[1]+'</p>'+movement(x[0])+'<p>Serie '+(set+1)+' di '+goal+' · Obiettivo 8–10 ripetizioni'+(x[0]==='Rematore con manubrio'?' per lato':'')+'</p><p class="muted">Recupero 90–120 secondi. '+(previous===null?'Parti leggero.':'Ultimo carico: '+previous+' kg per manubrio.')+'</p><p class="muted">'+loadAdvice(x[0])+'</p><div id="sportRest"></div><form id="sportTutorForm"><label>Ripetizioni completate</label><input id="sportTutorReps" type="number" min="1" max="50" value="8" required><label>Carico kg per manubrio (goblet: un manubrio)</label><input id="sportTutorLoad" type="number" min="0" step="0.25" value="'+(previous===null?0:previous)+'" required><button type="submit">Salva serie '+(set+1)+' e continua</button></form><p id="sportTutorError" role="alert"></p><button id="sportTutorBack" type="button" class="secondary">Torna al calendario</button>';
 restControls();
 const loadVideo=area.querySelector('.sportVideoLoad');
-if(loadVideo)loadVideo.onclick=()=>{
-const player=area.querySelector('.sportVideoPlayer');
-const id=loadVideo.dataset.video;
-if(!/^[a-zA-Z0-9_-]{11}$/.test(id))return;
-player.style.display='block';
-player.innerHTML='<iframe title="Dimostrazione esercizio" src="https://www.youtube.com/embed/'+id+'?playsinline=1&rel=0" allow="accelerometer;autoplay;encrypted-media;gyroscope;picture-in-picture;web-share" allowfullscreen style="display:block;width:100%;height:240px;border:0;border-radius:8px;background:#111"></iframe>';
-loadVideo.textContent='Ricarica il video';
-};
+if(loadVideo)loadVideo.onclick=()=>loadVideoInto(area,loadVideo);
 document.getElementById('sportTutorBack').onclick=calendar;
 document.getElementById('sportTutorForm').onsubmit=e=>{
 e.preventDefault();const reps=Number(document.getElementById('sportTutorReps').value),load=Number(document.getElementById('sportTutorLoad').value);
